@@ -3,12 +3,18 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.EnhancedTouch;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class BallHandler : MonoBehaviour
 {
-    [SerializeField] private Rigidbody2D currentBallRigidbody;
-    [SerializeField] private SpringJoint2D currentBallSpringJoint;
+    [SerializeField] private GameObject ballPrefab;
+    [SerializeField] private Rigidbody2D pivot;
     [SerializeField] private float detchDelay;
+    [SerializeField] private float respawnDelay;
+
+    private Rigidbody2D currentBallRigidbody;
+    private SpringJoint2D currentBallSpringJoint;
     private Camera mainCamera;
     private bool isDragging;
 
@@ -16,7 +22,16 @@ public class BallHandler : MonoBehaviour
     void Start()
     {
         mainCamera  = Camera.main;
-        
+        SpawnNewBall();
+    }
+    private void OnEnable()
+    {
+        EnhancedTouchSupport.Enable();      
+    }
+
+    private void OnDisable()
+    {
+        EnhancedTouchSupport.Disable();
     }
 
     // Update is called once per frame
@@ -27,7 +42,7 @@ public class BallHandler : MonoBehaviour
             return;
         }
 
-        if(!Touchscreen.current.primaryTouch.press.isPressed)
+        if(Touch.activeTouches.Count == 0)
         {
             if (isDragging)
             {
@@ -39,20 +54,29 @@ public class BallHandler : MonoBehaviour
         }
         
         isDragging = true; 
-
         currentBallRigidbody.isKinematic = true;
 
-        Vector2 touchPosition = Touchscreen.current.primaryTouch.position.ReadValue();
+        Vector2 touchPosition = new Vector2();
+
+        foreach (Touch touch in Touch.activeTouches)
+        {
+            touchPosition += touch.screenPosition;
+        }
+        touchPosition /= Touch.activeTouches.Count;
 
         Vector3 woldPosition = mainCamera.ScreenToWorldPoint(touchPosition);
 
-        //Debug.Log("Local position : " + touchPosition);
-        //Debug.Log("world position : " + woldPosition);
-
         currentBallRigidbody.position = woldPosition;
+    }
 
+    private void SpawnNewBall()
+    {
+        GameObject ballInstance = Instantiate(ballPrefab, pivot.position, Quaternion.identity);
 
+        currentBallRigidbody = ballInstance.GetComponent<Rigidbody2D>();
+        currentBallSpringJoint = ballInstance.GetComponent <SpringJoint2D>();
 
+        currentBallSpringJoint.connectedBody = pivot;
     }
 
     private void LaunchBall()
@@ -67,5 +91,7 @@ public class BallHandler : MonoBehaviour
     {
         currentBallSpringJoint.enabled = false;
         currentBallSpringJoint = null;
+
+        Invoke(nameof(SpawnNewBall), respawnDelay);
     }
 }
